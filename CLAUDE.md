@@ -198,6 +198,59 @@ Backend mora biti pokrenut PRIJE otvaranja dashboarda.
 | Sprint | Status | Opis |
 |---|---|---|
 | Sprint 1 — Dashboard | ✅ DONE | Prikaz pacijenata, grupiranje, unos doze, feedback |
+| Playwright Testing | ✅ DONE | 7/7 testova prolazi, headless Chromium |
+
+---
+
+## Testing — Playwright
+
+### Setup
+
+| Paket | Verzija |
+|---|---|
+| `@playwright/test` | ^1.58.2 |
+| Browser | Chromium (headless) |
+| Config | `playwright.config.ts` |
+| Testovi | `tests/dashboard.spec.ts` |
+
+### Pokretanje
+
+```bash
+# Backend i frontend moraju biti pokrenuti PRIJE testova
+npm test          # headless, list reporter
+npm run test:ui   # Playwright UI mode (interaktivno)
+```
+
+### Testovi (7/7)
+
+| Test | Opis |
+|---|---|
+| `ucitava dashboard stranicu` | h1 vidljiv, sadrži "Inclisiran" |
+| `prikazuje summary kartice` | 3x `[data-testid="summary-card"]` |
+| `prikazuje sekciju Za akciju ili Nema pacijenata` | jedan od dva teksta vidljiv |
+| `osvjezi button postoji i klikabilan je` | button "Osvježi" radi |
+| `otvara modal klikom na Unesi dozu` | `role="dialog"` vidljiv, heading provjeren |
+| `modal sadrzi date input i submit button` | date input + "Potvrdi dozu" button |
+| `modal se zatvara klikom na X` | X button zatvara modal |
+
+### Kritična napomena — beforeEach
+
+```typescript
+await page.waitForSelector('[data-testid="summary-card"]', { timeout: 15000 });
+```
+
+**Ne koristiti `networkidle` ni `waitForSelector('h1, p')`.**
+- `networkidle` timeouta (API poziv blokira)
+- `waitForSelector('h1, p')` hvata "Učitavanje..." paragraf prerano
+
+`[data-testid="summary-card"]` se pojavljuje tek kad API vrati podatke — siguran signal da je dashboard spreman.
+
+### data-testid atributi
+
+| Komponenta | Atribut |
+|---|---|
+| `SummaryCards.tsx` | `data-testid="summary-card"` na svakoj kartici |
+| `RecordDoseModal.tsx` | `role="dialog"` na overlay divu, `aria-label="Zatvori"` na X buttonu |
 
 ---
 
