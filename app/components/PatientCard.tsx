@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { DashboardEntry } from "../types";
 import { StatusBadge } from "./StatusBadge";
 import { formatDate } from "../utils/formatDate";
@@ -23,9 +24,12 @@ export function PatientCard({ entry, onRecord }: Props) {
     <div className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-4 py-3 gap-4">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-semibold text-gray-900 truncate">
+          <Link
+            href={`/patient/${entry.patient_id}`}
+            className="font-semibold text-gray-900 truncate hover:text-blue-600"
+          >
             {entry.ime_prezime}
-          </span>
+          </Link>
           <StatusBadge status={displayStatus} />
         </div>
         <div className="text-xs text-gray-400 mt-0.5">{entry.patient_id}</div>

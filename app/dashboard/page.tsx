@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { SummaryCards } from "../components/SummaryCards";
 import { PatientCard } from "../components/PatientCard";
@@ -70,12 +71,20 @@ export default function DashboardPage() {
           <h1 className="text-xl font-bold text-gray-900">
             Inclisiran Dose Tracker
           </h1>
-          <button
-            onClick={refresh}
-            className="text-xs text-gray-400 hover:text-gray-600"
-          >
-            Osvježi
-          </button>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/patient/new"
+              className="text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg"
+            >
+              + Novi pacijent
+            </Link>
+            <button
+              onClick={refresh}
+              className="text-xs text-gray-400 hover:text-gray-600"
+            >
+              Osvježi
+            </button>
+          </div>
         </div>
 
         <SummaryCards data={data} />

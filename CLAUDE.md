@@ -50,20 +50,30 @@ Ne koristiti `@import "tailwindcss"` (Tailwind v4 sintaksa).
 
 ```
 app/
-├── types.ts                        — TypeScript tipovi (DashboardEntry, GroupedDashboard)
+├── types.ts                        — DashboardEntry, GroupedDashboard, PatientOverview, ScheduleEntry, TherapyWithSchedules
 ├── globals.css                     — Tailwind directives
 ├── layout.tsx                      — Root layout
 ├── page.tsx                        — Redirect → /dashboard
 ├── hooks/
-│   └── useDashboardData.ts         — Fetch + grupiranje podataka
+│   ├── useDashboardData.ts         — Fetch + grupiranje podataka
+│   └── usePatientData.ts           — Parallel fetch: overview + schedule + dashboard (za ime)
 ├── components/
 │   ├── SummaryCards.tsx            — Kartice: Kasni / Danas / Nadolazeće
-│   ├── StatusBadge.tsx             — Badge komponenta sa bojama po statusu
-│   ├── PatientCard.tsx             — Kartica pacijenta sa "Unesi dozu" buttonom
+│   ├── StatusBadge.tsx             — Badge sa bojama po statusu
+│   ├── PatientCard.tsx             — Kartica pacijenta; ime = link → /patient/[id]
 │   ├── PatientList.tsx             — Lista pacijenata sa naslovom i empty state
-│   └── RecordDoseModal.tsx         — Modal za unos doze (POST /dose)
+│   ├── RecordDoseModal.tsx         — Modal za unos doze (POST /dose)
+│   ├── PatientHeader.tsx           — Ime + ID + ← Povratak na Dashboard button
+│   ├── PatientStatus.tsx           — Dominantni status blok (kasni=crveni, on track=zeleni)
+│   ├── ScheduleList.tsx            — Raspored doza sa status pillovima (6 stanja)
+│   └── DoseHistory.tsx             — Historija izvrseno doza, sortirano DESC
 ├── dashboard/
-│   └── page.tsx                    — Glavni dashboard ekran
+│   └── page.tsx                    — Dashboard: header + "+ Novi pacijent" link
+├── patient/
+│   ├── [id]/
+│   │   └── page.tsx                — Patient detail: decodeURIComponent(id), overview + schedule + history
+│   └── new/
+│       └── page.tsx                — Forma: kreiraj pacijenta + pokreni terapiju + opcionalni lipidi
 └── utils/
     └── formatDate.ts               — YYYY-MM-DD → DD.MM.YYYY
 tailwind.config.js                  — content: ["./app/**/*.{js,ts,jsx,tsx}"]
@@ -79,8 +89,14 @@ next.config.ts                      — Proxy rewrite: /api/* → http://localho
 |---|---|---|
 | `GET /dashboard` | `useDashboardData` | Lista kasni + na_redu pacijenata |
 | `POST /dose` | `RecordDoseModal` | Unos doze |
+| `GET /patient/:id/overview` | `usePatientData` | Status, zadnja/sljedeća doza, aktivna terapija |
+| `GET /schedule/:patient_id` | `usePatientData` | Sve terapije i raspored doza |
+| `POST /patients` | `/patient/new` | Kreiranje pacijenta (`{ id, ime_prezime }`) |
+| `POST /therapy/start` | `/patient/new` | Pokretanje terapije (`{ patient_id, start_date }`) |
 
-**Nema GET /patients endpointa u backendu.** Lista pacijenata dolazi isključivo iz `GET /dashboard`.
+**Nema GET /patients endpointa u backendu.** Ime pacijenta se dobiva iz `GET /dashboard` (filter po `patient_id`).
+
+**GET /reports/historical** vraća aggregate po mjesecu bez `patient_id` — ne može se filtrirati per-patient. Historija doza se čita iz `izvrseno` entries u `GET /schedule/:patient_id`.
 
 ---
 
@@ -137,6 +153,31 @@ Fetch pozivi u frontend kodu uvijek koriste `/api/...` prefiks.
 3. Vraća `{ data, loading, error, refresh }`
 
 **Ne mijenjati grupiranje bez razumijevanja backend logike.** `kasni`/`na_redu` su computed statusi iz backend `getEffectiveScheduleStatus()`.
+
+---
+
+## Patient Detail — /patient/[id]
+
+**Kritično:** `decodeURIComponent(id)` — uvijek dekodiraj route param prije API poziva i prikaza.
+
+Ime pacijenta nije dostupno u overview/schedule endpointima — fetchamo `GET /dashboard` i filtriramo po `patient_id`.
+
+Dose history = `izvrseno` entries iz `GET /schedule/:patient_id` (ne koristiti `/reports/historical`).
+
+Status blok je vizualno dominantan:
+- `overdue` → `border-2 border-red-400`, naslov `text-2xl font-bold text-red-700`
+- `on_track` → `border border-green-300`, naslov `text-2xl font-bold text-green-700`
+
+---
+
+## Add Patient — /patient/new
+
+Sekvencijalni flow:
+1. `POST /api/patients` → dobije `{ id, ime_prezime, created_at }`
+2. `POST /api/therapy/start` s `patient_id` iz koraka 1
+3. Redirect → `/patient/[id]`
+
+Lipidi su opcionalni (collapsible sekcija) — nisu implementirani u backendu, čuvaju se samo u frontend stanju. Polja: ukupni kolesterol, LDL, HDL, trigliceridi, datum mjerenja.
 
 ---
 
@@ -199,6 +240,8 @@ Backend mora biti pokrenut PRIJE otvaranja dashboarda.
 |---|---|---|
 | Sprint 1 — Dashboard | ✅ DONE | Prikaz pacijenata, grupiranje, unos doze, feedback |
 | Playwright Testing | ✅ DONE | 7/7 testova prolazi, headless Chromium |
+| Sprint 2 — Patient Detail | ✅ DONE | /patient/[id]: status blok, raspored, historija, unos doze |
+| Sprint 3 — Add Patient | ✅ DONE | /patient/new: kreiranje pacijenta + terapija + opcionalni lipidi |
 
 ---
 
