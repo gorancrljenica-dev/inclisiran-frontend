@@ -62,9 +62,19 @@ export function RecordDoseModal({ entry, onClose, onSuccess }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+    <div role="dialog" aria-modal="true" className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm">
-        <h2 className="text-lg font-semibold text-gray-900 mb-1">Unesi dozu</h2>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-lg font-semibold text-gray-900">Unesi dozu</h2>
+          <button
+            type="button"
+            aria-label="Zatvori"
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+          >
+            ×
+          </button>
+        </div>
         <p className="text-sm text-gray-500 mb-4">
           {entry.ime_prezime} &mdash; planirana: {formatDate(entry.planned_date)}
         </p>
