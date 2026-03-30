@@ -1,18 +1,24 @@
-import { TherapyWithSchedules } from "../types";
+import { TherapyWithSchedules, DashboardEntry } from "../types";
 import { formatDate } from "../utils/formatDate";
 
 interface Props {
   therapies: TherapyWithSchedules[];
+  patientId: string;
+  patientName: string | null;
+  onRecord: (entry: DashboardEntry) => void;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; pillClass: string; rowClass: string }> = {
-  planirano:      { label: "Planirano",  pillClass: "bg-blue-100 text-blue-700",    rowClass: "" },
-  na_redu:        { label: "Na redu",    pillClass: "bg-yellow-100 text-yellow-700", rowClass: "border-yellow-300 bg-yellow-50" },
-  kasni:          { label: "Kasni",      pillClass: "bg-red-100 text-red-700",       rowClass: "border-red-300 bg-red-50" },
-  izvrseno:       { label: "Izvršeno",   pillClass: "bg-green-100 text-green-700",   rowClass: "" },
-  propusteno:     { label: "Propušteno", pillClass: "bg-gray-100 text-gray-400",     rowClass: "opacity-60" },
-  reset_potreban: { label: "Reset",      pillClass: "bg-orange-100 text-orange-700", rowClass: "" },
+  planirano:      { label: "Planirano",              pillClass: "bg-blue-100 text-blue-700",    rowClass: "" },
+  na_redu:        { label: "Na redu",                pillClass: "bg-yellow-100 text-yellow-700", rowClass: "border-yellow-300 bg-yellow-50" },
+  kasni:          { label: "Kasni",                  pillClass: "bg-red-100 text-red-700",       rowClass: "border-red-300 bg-red-50" },
+  izvrseno:       { label: "Izvršeno",               pillClass: "bg-green-100 text-green-700",   rowClass: "" },
+  propusteno:     { label: "Propušteno",             pillClass: "bg-gray-100 text-gray-400",     rowClass: "opacity-60" },
+  reset_potreban: { label: "Potreban reset terapije", pillClass: "bg-red-100 text-red-700",      rowClass: "border-red-400 bg-red-50" },
 };
+
+// Statuses where dose entry is allowed
+const ACTIONABLE = new Set(["kasni", "na_redu", "reset_potreban"]);
 
 function StatusPill({ status }: { status: string }) {
   const config = STATUS_CONFIG[status] ?? { label: status, pillClass: "bg-gray-100 text-gray-500", rowClass: "" };
@@ -23,13 +29,13 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-export function ScheduleList({ therapies }: Props) {
+export function ScheduleList({ therapies, patientId, patientName, onRecord }: Props) {
   const sorted = [...therapies].sort((a, b) =>
     b.therapy.start_date.localeCompare(a.therapy.start_date)
   );
 
   const allSchedules = sorted.flatMap((t) =>
-    t.schedules.map((s) => ({ ...s }))
+    t.schedules.map((s) => ({ ...s, therapyId: t.therapy.id }))
   );
 
   return (
@@ -44,6 +50,8 @@ export function ScheduleList({ therapies }: Props) {
         <div className="space-y-2">
           {allSchedules.map((s) => {
             const config = STATUS_CONFIG[s.status] ?? { rowClass: "", pillClass: "bg-gray-100 text-gray-500", label: s.status };
+            const actionable = ACTIONABLE.has(s.status);
+
             return (
               <div
                 key={s.id}
@@ -55,7 +63,27 @@ export function ScheduleList({ therapies }: Props) {
                   </span>
                   <span className="text-xs text-gray-400 ml-2">{s.type}</span>
                 </div>
-                <StatusPill status={s.status} />
+                <div className="flex items-center gap-2">
+                  <StatusPill status={s.status} />
+                  {actionable && (
+                    <button
+                      onClick={() =>
+                        onRecord({
+                          patient_id: patientId,
+                          ime_prezime: patientName ?? patientId,
+                          therapy_id: s.therapyId,
+                          schedule_id: s.id,
+                          planned_date: s.planned_date,
+                          type: s.type,
+                          status: "kasni",
+                        })
+                      }
+                      className="text-xs px-2.5 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 shrink-0"
+                    >
+                      Unesi dozu
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}

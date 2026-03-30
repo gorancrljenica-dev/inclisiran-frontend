@@ -19,6 +19,7 @@ export default function PatientPage({ params }: Props) {
   const decodedId = decodeURIComponent(id);
   const { data, loading, error, refresh } = usePatientData(decodedId);
   const [showModal, setShowModal] = useState(false);
+  const [modalEntry, setModalEntry] = useState<DashboardEntry | null>(null);
 
   if (loading) {
     return (
@@ -46,7 +47,8 @@ export default function PatientPage({ params }: Props) {
 
   const canRecord = data.overview?.active_therapy != null;
 
-  const modalEntry: DashboardEntry | null = canRecord
+  // Default entry for the top-level "Unesi novu dozu" button
+  const defaultModalEntry: DashboardEntry | null = canRecord
     ? {
         patient_id: decodedId,
         ime_prezime: data.patientName ?? id,
@@ -68,10 +70,10 @@ export default function PatientPage({ params }: Props) {
 
         {data.overview && <PatientStatus overview={data.overview} />}
 
-        {modalEntry && (
+        {defaultModalEntry && (
           <div className="mb-8">
             <button
-              onClick={() => setShowModal(true)}
+              onClick={() => { setModalEntry(defaultModalEntry); setShowModal(true); }}
               className="w-full py-3 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 active:bg-blue-800"
             >
               Unesi novu dozu
@@ -79,7 +81,12 @@ export default function PatientPage({ params }: Props) {
           </div>
         )}
 
-        <ScheduleList therapies={data.therapies} />
+        <ScheduleList
+          therapies={data.therapies}
+          patientId={decodedId}
+          patientName={data.patientName}
+          onRecord={(entry) => { setShowModal(true); setModalEntry(entry); }}
+        />
 
         <DoseHistory therapies={data.therapies} />
 
@@ -88,7 +95,7 @@ export default function PatientPage({ params }: Props) {
       {showModal && modalEntry && (
         <RecordDoseModal
           entry={modalEntry}
-          onClose={() => setShowModal(false)}
+          onClose={() => { setShowModal(false); setModalEntry(null); }}
           onSuccess={() => {
             setShowModal(false);
             refresh();
