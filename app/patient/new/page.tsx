@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useAsyncAction } from "../../hooks/useAsyncAction";
+import { Toast, useToast } from "../../components/Toast";
+import { API_URL } from "../../utils/api";
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -193,11 +196,9 @@ function LipidForm({
 function SubmitSection({
   submitting,
   error,
-  success,
 }: {
   submitting: boolean;
   error: string | null;
-  success: boolean;
 }) {
   return (
     <div className="space-y-3">
@@ -206,14 +207,9 @@ function SubmitSection({
           {error}
         </p>
       )}
-      {success && (
-        <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
-          Pacijent uspješno kreiran. Preusmjeravanje...
-        </p>
-      )}
       <button
         type="submit"
-        disabled={submitting || success}
+        disabled={submitting}
         className="w-full py-3 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {submitting ? "Kreiranje..." : "Kreiraj pacijenta"}
@@ -240,9 +236,8 @@ export default function NewPatientPage() {
     datumMjerenja: "",
   });
 
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const { loading: submitting, error, execute } = useAsyncAction();
+  const { toast, show: showToast, hide: hideToast } = useToast();
 
   function handlePatientChange(field: "name" | "id", value: string) {
     if (field === "name") setName(value);
@@ -255,49 +250,37 @@ export default function NewPatientPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
-    setSubmitting(true);
 
-    try {
+    let newPatientId: string | null = null;
+
+    const ok = await execute(async () => {
       // STEP 1 — Create patient
-      const patientRes = await fetch("/api/patients", {
+      const patientRes = await fetch(`${API_URL}/patients`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: patientId.trim(), ime_prezime: name.trim() }),
       });
-
       const patientBody = await patientRes.json();
-
-      if (!patientRes.ok) {
-        setError(patientBody.error ?? "Greška pri kreiranju pacijenta.");
-        return;
-      }
+      if (!patientRes.ok) throw new Error(patientBody.error ?? "Greška pri kreiranju pacijenta.");
 
       // STEP 2 — Start therapy
-      const therapyRes = await fetch("/api/therapy/start", {
+      const therapyRes = await fetch(`${API_URL}/therapy/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          patient_id: patientBody.id,
-          start_date: startDate,
-        }),
+        body: JSON.stringify({ patient_id: patientBody.id, start_date: startDate }),
       });
-
       const therapyBody = await therapyRes.json();
-
-      if (!therapyRes.ok) {
-        setError(therapyBody.error ?? "Greška pri pokretanju terapije.");
-        return;
-      }
+      if (!therapyRes.ok) throw new Error(therapyBody.error ?? "Greška pri pokretanju terapije.");
 
       // Lipids stored in state — not sent to backend (not supported yet)
+      newPatientId = patientBody.id;
+    });
 
-      setSuccess(true);
-      setTimeout(() => router.push(`/patient/${patientBody.id}`), 1200);
-    } catch {
-      setError("Greška pri kreiranju pacijenta.");
-    } finally {
-      setSubmitting(false);
+    if (ok && newPatientId) {
+      showToast("Pacijent uspješno kreiran.", "success");
+      setTimeout(() => router.push(`/patient/${newPatientId}`), 1200);
+    } else if (!ok) {
+      showToast("Greška pri kreiranju pacijenta.", "error");
     }
   }
 
@@ -329,11 +312,12 @@ export default function NewPatientPage() {
           <SubmitSection
             submitting={submitting}
             error={error}
-            success={success}
           />
         </form>
 
       </div>
+
+      {toast && <Toast message={toast.message} type={toast.type} onHide={hideToast} />}
     </div>
   );
 }

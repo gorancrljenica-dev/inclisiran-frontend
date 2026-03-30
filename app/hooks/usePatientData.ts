@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { PatientOverview, TherapyWithSchedules } from "../types";
+import { API_URL } from "../utils/api";
 
 interface PatientData {
   overview: PatientOverview | null;
@@ -24,9 +25,9 @@ export function usePatientData(patientId: string) {
     try {
       // Parallel fetch: overview + schedule + dashboard (for patient name)
       const [overviewRes, scheduleRes, dashboardRes] = await Promise.all([
-        fetch(`/api/patient/${patientId}/overview`),
-        fetch(`/api/schedule/${patientId}`),
-        fetch("/api/dashboard"),
+        fetch(`${API_URL}/patient/${patientId}/overview`),
+        fetch(`${API_URL}/schedule/${patientId}`),
+        fetch(`${API_URL}/dashboard`),
       ]);
 
       if (overviewRes.status === 404) {

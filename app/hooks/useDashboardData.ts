@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { DashboardEntry, GroupedDashboard } from "../types";
+import { API_URL } from "../utils/api";
 
 const today = () => new Date().toISOString().split("T")[0];
 
@@ -37,7 +38,7 @@ export function useDashboardData() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/dashboard");
+      const res = await fetch(`${API_URL}/dashboard`);
       if (!res.ok) throw new Error(`Backend error: ${res.status}`);
       const entries: DashboardEntry[] = await res.json();
       setData(groupEntries(entries));
