@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useAsyncAction } from "../../hooks/useAsyncAction";
-import { Toast, useToast } from "../../components/Toast";
-import { API_URL } from "../../utils/api";
+import { useAsyncAction } from "@/app/hooks/useAsyncAction";
+import { Toast, useToast } from "@/app/components/Toast";
+import { API_URL } from "@/app/utils/api";
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
