@@ -16,6 +16,15 @@ export interface GroupedDashboard {
 }
 
 // GET /patient/:id/overview
+export interface LipidEntry {
+  date: string;
+  dose_type: string | null;
+  ldl: number | null;
+  hdl: number | null;
+  trigliceridi: number | null;
+  ukupni: number | null;
+}
+
 export interface PatientOverview {
   patient_id: string;
   active_therapy: {
@@ -35,6 +44,7 @@ export interface PatientOverview {
   status:
     | { label: "overdue" | "on_track"; reason: string; delayed_days: number | null }
     | "no_active_therapy";
+  lipid_history: LipidEntry[];
 }
 
 // GET /patients

@@ -13,22 +13,48 @@ interface Props {
   onSuccess: () => void;
 }
 
+interface LipidValues {
+  ldl: string;
+  hdl: string;
+  trigliceridi: string;
+  ukupni: string;
+}
+
 export function RecordDoseModal({ entry, onClose, onSuccess }: Props) {
   const todayStr = new Date().toISOString().split("T")[0];
   const [date, setDate] = useState(todayStr);
+  const [showLipids, setShowLipids] = useState(false);
+  const [lipids, setLipids] = useState<LipidValues>({ ldl: "", hdl: "", trigliceridi: "", ukupni: "" });
   const { loading, error, execute } = useAsyncAction();
   const { toast, show: showToast, hide: hideToast } = useToast();
+
+  function handleLipidChange(field: keyof LipidValues, value: string) {
+    setLipids((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function buildLipidi(): object | undefined {
+    const l = {
+      ldl:          lipids.ldl          ? parseFloat(lipids.ldl)          : null,
+      hdl:          lipids.hdl          ? parseFloat(lipids.hdl)          : null,
+      trigliceridi: lipids.trigliceridi ? parseFloat(lipids.trigliceridi) : null,
+      ukupni:       lipids.ukupni       ? parseFloat(lipids.ukupni)       : null,
+    };
+    const hasAny = Object.values(l).some((v) => v !== null);
+    return hasAny ? l : undefined;
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
     const ok = await execute(async () => {
+      const lipidi = showLipids ? buildLipidi() : undefined;
       const res = await fetch(`${API_URL}/dose`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           therapy_id: entry.therapy_id,
           actual_date: date,
+          ...(lipidi ? { lipidi } : {}),
         }),
       });
 
@@ -80,6 +106,41 @@ export function RecordDoseModal({ entry, onClose, onSuccess }: Props) {
                 required
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+
+            {/* Collapsible lipid section */}
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowLipids((v) => !v)}
+                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700"
+              >
+                <span>{showLipids ? "▲" : "▼"}</span>
+                Lipidni nalaz (opcionalno)
+              </button>
+
+              {showLipids && (
+                <div className="mt-3 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["ldl", "hdl", "trigliceridi", "ukupni"] as (keyof LipidValues)[]).map((field) => (
+                      <div key={field}>
+                        <label className="block text-xs text-gray-500 mb-0.5 capitalize">
+                          {field === "ukupni" ? "Ukupni kol." : field.toUpperCase()} (mmol/L)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          value={lipids[field]}
+                          onChange={(e) => handleLipidChange(field, e.target.value)}
+                          placeholder="npr. 3.5"
+                          className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {error && (

@@ -7,6 +7,7 @@ import { PatientHeader } from "../../components/PatientHeader";
 import { PatientStatus } from "../../components/PatientStatus";
 import { ScheduleList } from "../../components/ScheduleList";
 import { DoseHistory } from "../../components/DoseHistory";
+import { LipidHistory } from "../../components/LipidHistory";
 import { RecordDoseModal } from "../../components/RecordDoseModal";
 import { DashboardEntry } from "../../types";
 
@@ -89,6 +90,10 @@ export default function PatientPage({ params }: Props) {
         />
 
         <DoseHistory therapies={data.therapies} />
+
+        {data.overview && (
+          <LipidHistory history={data.overview.lipid_history ?? []} />
+        )}
 
       </div>
 
