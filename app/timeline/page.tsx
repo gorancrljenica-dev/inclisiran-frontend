@@ -34,7 +34,16 @@ function typeLabel(type: string): string {
   return TYPE_LABEL[type] ?? type;
 }
 
-function groupByDate(entries: TimelineEntry[]): DateGroup[] {
+function datePriority(date: string, today: string): number {
+  if (date < today) return 0; // kasni
+  if (date === today) return 1; // today
+  const diffDays =
+    (new Date(date).getTime() - new Date(today).getTime()) / (1000 * 60 * 60 * 24);
+  if (diffDays <= 14) return 2; // na_redu window
+  return 3; // planirano
+}
+
+function groupByDate(entries: TimelineEntry[], today: string): DateGroup[] {
   const map = new Map<string, TimelineEntry[]>();
   for (const e of entries) {
     const existing = map.get(e.planned_date) ?? [];
@@ -42,9 +51,13 @@ function groupByDate(entries: TimelineEntry[]): DateGroup[] {
     map.set(e.planned_date, existing);
   }
   return Array.from(map.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, items]) => ({ date, items: items as TimelineEntry[] }))
-    .map(({ date, items }) => ({ date, entries: items }));
+    .sort(([a], [b]) => {
+      const pa = datePriority(a, today);
+      const pb = datePriority(b, today);
+      if (pa !== pb) return pa - pb;       // urgency first
+      return a.localeCompare(b);           // then date ascending within group
+    })
+    .map(([date, items]) => ({ date, entries: items as TimelineEntry[] }));
 }
 
 function dateHeaderClass(date: string, today: string): string {
@@ -86,7 +99,8 @@ export default function TimelinePage() {
       const res = await fetch(`${API_URL}/timeline`);
       if (!res.ok) throw new Error(`Greška: ${res.status}`);
       const entries: TimelineEntry[] = await res.json();
-      setGroups(groupByDate(entries));
+      const t = new Date().toISOString().split("T")[0];
+      setGroups(groupByDate(entries, t));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Greška pri učitavanju.");
     } finally {
