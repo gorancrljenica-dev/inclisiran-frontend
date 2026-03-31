@@ -57,7 +57,16 @@ function groupByDate(entries: TimelineEntry[], today: string): DateGroup[] {
       if (pa !== pb) return pa - pb;       // urgency first
       return a.localeCompare(b);           // then date ascending within group
     })
-    .map(([date, items]) => ({ date, entries: items as TimelineEntry[] }));
+    .map(([date, items]) => ({
+      date,
+      entries: (items as TimelineEntry[]).sort((a, b) => {
+        const sp: Record<string, number> = { kasni: 0, na_redu: 1, planirano: 2 };
+        const pa = sp[a.status] ?? 3;
+        const pb = sp[b.status] ?? 3;
+        if (pa !== pb) return pa - pb;
+        return a.ime_prezime.localeCompare(b.ime_prezime);
+      }),
+    }));
 }
 
 function dateHeaderClass(date: string, today: string): string {
