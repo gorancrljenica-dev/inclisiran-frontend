@@ -254,26 +254,47 @@ export default function NewPatientPage() {
     let newPatientId: string | null = null;
 
     const ok = await execute(async () => {
-      // STEP 1 — Create patient
+      const trimmedId = patientId.trim();
+
+      // STEP 1 — Create patient (or recover if already exists with no active therapy)
       const patientRes = await fetch(`${API_URL}/patients`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: patientId.trim(), ime_prezime: name.trim() }),
+        body: JSON.stringify({ id: trimmedId, ime_prezime: name.trim() }),
       });
       const patientBody = await patientRes.json();
-      if (!patientRes.ok) throw new Error(patientBody.error ?? "Greška pri kreiranju pacijenta.");
+
+      if (!patientRes.ok) {
+        if (patientRes.status === 409) {
+          // Patient already exists — check if they have an active therapy
+          const overviewRes = await fetch(`${API_URL}/patient/${encodeURIComponent(trimmedId)}/overview`);
+          if (!overviewRes.ok) throw new Error("Pacijent već postoji, ali status nije dostupan.");
+          const overview = await overviewRes.json();
+          if (overview.active_therapy !== null) {
+            throw new Error("Pacijent već postoji i ima aktivnu terapiju.");
+          }
+          // No active therapy → safe to start therapy on existing patient
+        } else {
+          throw new Error(patientBody.error ?? "Greška pri kreiranju pacijenta.");
+        }
+      }
 
       // STEP 2 — Start therapy
       const therapyRes = await fetch(`${API_URL}/therapy/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ patient_id: patientBody.id, start_date: startDate }),
+        body: JSON.stringify({ patient_id: trimmedId, start_date: startDate }),
       });
       const therapyBody = await therapyRes.json();
       if (!therapyRes.ok) throw new Error(therapyBody.error ?? "Greška pri pokretanju terapije.");
 
-      // Lipids stored in state — not sent to backend (not supported yet)
-      newPatientId = patientBody.id;
+      // Verify schedule was generated
+      const schedule: { type: string }[] = therapyBody.schedule ?? [];
+      if (schedule.length === 0) {
+        throw new Error("Raspored doza nije generiran. Pokušajte ponovo.");
+      }
+
+      newPatientId = trimmedId;
     });
 
     if (ok && newPatientId) {
