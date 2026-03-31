@@ -73,6 +73,12 @@ export default function DashboardPage() {
           </h1>
           <div className="flex items-center gap-3">
             <Link
+              href="/patients"
+              className="text-xs font-medium text-gray-600 bg-white border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-lg"
+            >
+              Svi pacijenti
+            </Link>
+            <Link
               href="/patient/new"
               className="text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg"
             >

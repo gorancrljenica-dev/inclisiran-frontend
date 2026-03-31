@@ -37,6 +37,12 @@ export interface PatientOverview {
     | "no_active_therapy";
 }
 
+// GET /patients
+export interface PatientListItem {
+  id: string;
+  ime_prezime: string;
+}
+
 // GET /schedule/:patient_id
 export interface ScheduleEntry {
   id: string;
