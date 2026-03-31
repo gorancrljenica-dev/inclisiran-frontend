@@ -59,8 +59,9 @@ export function RecordDoseModal({ entry, onClose, onSuccess }: Props) {
       });
 
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error((body as { error?: string }).error ?? `Greška: ${res.status}`);
+        if (res.status === 409) throw new Error("Doza već postoji za ovaj datum");
+        if (res.status === 400) throw new Error("Neispravan unos");
+        throw new Error("Greška sistema — pokušajte ponovo");
       }
       // 2xx — success; response body is not needed
     });
