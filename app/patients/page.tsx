@@ -13,7 +13,11 @@ interface PatientRow {
   overview: PatientOverview | null;
 }
 
-// ─── Status helpers ───────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function hasNoTherapy(overview: PatientOverview | null): boolean {
+  return !overview || overview.status === "no_active_therapy";
+}
 
 function statusLabel(overview: PatientOverview | null): string {
   if (!overview) return "—";
@@ -31,12 +35,94 @@ function statusClass(overview: PatientOverview | null): string {
   return "text-green-700 font-semibold";
 }
 
+// ─── StartTherapyForm (inline, appears inside the row) ────────────────────────
+
+function StartTherapyForm({
+  patientId,
+  onSuccess,
+  onCancel,
+}: {
+  patientId: string;
+  onSuccess: (overview: PatientOverview) => void;
+  onCancel: () => void;
+}) {
+  const today = new Date().toISOString().split("T")[0];
+  const [startDate, setStartDate] = useState(today);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_URL}/therapy/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patient_id: patientId, start_date: startDate }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Greška pri pokretanju terapije.");
+
+      // Refresh this patient's overview
+      const overviewRes = await fetch(
+        `${API_URL}/patient/${encodeURIComponent(patientId)}/overview`
+      );
+      const overview: PatientOverview = overviewRes.ok ? await overviewRes.json() : null;
+      onSuccess(overview);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Nepoznata greška.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      onClick={(e) => e.stopPropagation()}
+      className="mt-3 pt-3 border-t border-gray-100"
+    >
+      <div className="flex items-center gap-2 flex-wrap">
+        <label className="text-xs text-gray-500 shrink-0">Datum početka:</label>
+        <input
+          type="date"
+          value={startDate}
+          max={today}
+          onChange={(e) => setStartDate(e.target.value)}
+          required
+          className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <button
+          type="submit"
+          disabled={loading}
+          className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? "Pokretanje..." : "Potvrdi"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={loading}
+          className="text-xs px-3 py-1.5 text-gray-500 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+        >
+          Odustani
+        </button>
+      </div>
+      {error && (
+        <p className="mt-2 text-xs text-red-600">{error}</p>
+      )}
+    </form>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PatientsPage() {
   const [rows, setRows] = useState<PatientRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -46,7 +132,6 @@ export default function PatientsPage() {
       if (!listRes.ok) throw new Error(`Greška pri učitavanju pacijenata: ${listRes.status}`);
       const patients: PatientListItem[] = await listRes.json();
 
-      // Fan-out: fetch overview for every patient in parallel
       const overviews = await Promise.all(
         patients.map((p) =>
           fetch(`${API_URL}/patient/${encodeURIComponent(p.id)}/overview`)
@@ -66,6 +151,13 @@ export default function PatientsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  function handleTherapySuccess(patientId: string, overview: PatientOverview) {
+    setRows((prev) =>
+      prev.map((r) => (r.patient.id === patientId ? { ...r, overview } : r))
+    );
+    setExpandedId(null);
+  }
 
   if (loading) {
     return (
@@ -125,37 +217,86 @@ export default function PatientsPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {rows.map(({ patient, overview }) => (
-              <Link
-                key={patient.id}
-                href={`/patient/${encodeURIComponent(patient.id)}`}
-                className="block bg-white border border-gray-200 rounded-lg px-4 py-3 hover:border-blue-300 hover:shadow-sm transition-all"
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-900 truncate">
-                      {patient.ime_prezime}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-0.5">{patient.id}</p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className={`text-sm ${statusClass(overview)}`}>
-                      {statusLabel(overview)}
-                    </p>
-                    {overview?.next_dose && (
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        Sljedeća: {formatDate(overview.next_dose.planned_date)}
-                      </p>
+            {rows.map(({ patient, overview }) => {
+              const noTherapy = hasNoTherapy(overview);
+              const isExpanded = expandedId === patient.id;
+
+              if (noTherapy) {
+                // Not a link — needs inline action
+                return (
+                  <div
+                    key={patient.id}
+                    className="bg-white border border-gray-200 rounded-lg px-4 py-3"
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <Link
+                          href={`/patient/${encodeURIComponent(patient.id)}`}
+                          className="font-semibold text-gray-900 truncate hover:text-blue-600"
+                        >
+                          {patient.ime_prezime}
+                        </Link>
+                        <p className="text-xs text-gray-400 mt-0.5">{patient.id}</p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className={`text-sm ${statusClass(overview)}`}>
+                          {statusLabel(overview)}
+                        </span>
+                        {!isExpanded && (
+                          <button
+                            onClick={() => setExpandedId(patient.id)}
+                            className="text-xs px-2.5 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700"
+                          >
+                            Pokreni terapiju
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {isExpanded && (
+                      <StartTherapyForm
+                        patientId={patient.id}
+                        onSuccess={(ov) => handleTherapySuccess(patient.id, ov)}
+                        onCancel={() => setExpandedId(null)}
+                      />
                     )}
-                    {overview?.last_dose && (
-                      <p className="text-xs text-gray-400">
-                        Zadnja: {formatDate(overview.last_dose.planned_date)}
-                      </p>
-                    )}
                   </div>
-                </div>
-              </Link>
-            ))}
+                );
+              }
+
+              // Has therapy — full row is a link
+              return (
+                <Link
+                  key={patient.id}
+                  href={`/patient/${encodeURIComponent(patient.id)}`}
+                  className="block bg-white border border-gray-200 rounded-lg px-4 py-3 hover:border-blue-300 hover:shadow-sm transition-all"
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-gray-900 truncate">
+                        {patient.ime_prezime}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">{patient.id}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className={`text-sm ${statusClass(overview)}`}>
+                        {statusLabel(overview)}
+                      </p>
+                      {overview?.next_dose && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          Sljedeća: {formatDate(overview.next_dose.planned_date)}
+                        </p>
+                      )}
+                      {overview?.last_dose && (
+                        <p className="text-xs text-gray-400">
+                          Zadnja: {formatDate(overview.last_dose.planned_date)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
 
