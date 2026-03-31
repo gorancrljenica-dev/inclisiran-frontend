@@ -58,8 +58,11 @@ export function RecordDoseModal({ entry, onClose, onSuccess }: Props) {
         }),
       });
 
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? `Greška: ${res.status}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? `Greška: ${res.status}`);
+      }
+      // 2xx — success; response body is not needed
     });
 
     if (ok) {

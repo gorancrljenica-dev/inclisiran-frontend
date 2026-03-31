@@ -309,8 +309,8 @@ export default function NewPatientPage() {
         }),
       });
       if (!doseRes.ok) {
-        const doseBody = await doseRes.json();
-        console.error("[dose] Initial dose recording failed:", doseBody.error);
+        const doseBody = await doseRes.json().catch(() => ({}));
+        console.error("[dose] Initial dose recording failed:", (doseBody as { error?: string }).error);
         doseRecorded = false;
         // Do not throw — therapy was created successfully; dose can be added from patient page
       }
