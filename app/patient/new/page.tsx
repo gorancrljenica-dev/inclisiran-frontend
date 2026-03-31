@@ -108,7 +108,16 @@ interface LipidValues {
   ldl: string;
   hdl: string;
   trigliceridi: string;
-  datumMjerenja: string;
+}
+
+function buildLipidi(v: LipidValues) {
+  const obj = {
+    ldl:          v.ldl              ? parseFloat(v.ldl)              : null,
+    hdl:          v.hdl              ? parseFloat(v.hdl)              : null,
+    trigliceridi: v.trigliceridi     ? parseFloat(v.trigliceridi)     : null,
+    ukupni:       v.ukupniKolesterol ? parseFloat(v.ukupniKolesterol) : null,
+  };
+  return Object.values(obj).some((x) => x !== null) ? obj : null;
 }
 
 function LipidForm({
@@ -179,14 +188,6 @@ function LipidForm({
               className={inputClass}
             />
           </Field>
-          <Field label="Datum mjerenja">
-            <input
-              type="date"
-              value={values.datumMjerenja}
-              onChange={(e) => onChange("datumMjerenja", e.target.value)}
-              className={inputClass}
-            />
-          </Field>
         </div>
       )}
     </section>
@@ -233,7 +234,6 @@ export default function NewPatientPage() {
     ldl: "",
     hdl: "",
     trigliceridi: "",
-    datumMjerenja: "",
   });
 
   const { loading: submitting, error, execute } = useAsyncAction();
@@ -252,6 +252,8 @@ export default function NewPatientPage() {
     e.preventDefault();
 
     let newPatientId: string | null = null;
+    let newTherapyId: string | null = null;
+    let doseRecorded = true;
 
     const ok = await execute(async () => {
       const trimmedId = patientId.trim();
@@ -266,14 +268,12 @@ export default function NewPatientPage() {
 
       if (!patientRes.ok) {
         if (patientRes.status === 409) {
-          // Patient already exists — check if they have an active therapy
           const overviewRes = await fetch(`${API_URL}/patient/${encodeURIComponent(trimmedId)}/overview`);
           if (!overviewRes.ok) throw new Error("Pacijent već postoji, ali status nije dostupan.");
           const overview = await overviewRes.json();
           if (overview.active_therapy !== null) {
             throw new Error("Pacijent već postoji i ima aktivnu terapiju.");
           }
-          // No active therapy → safe to start therapy on existing patient
         } else {
           throw new Error(patientBody.error ?? "Greška pri kreiranju pacijenta.");
         }
@@ -288,18 +288,40 @@ export default function NewPatientPage() {
       const therapyBody = await therapyRes.json();
       if (!therapyRes.ok) throw new Error(therapyBody.error ?? "Greška pri pokretanju terapije.");
 
-      // Verify schedule was generated
       const schedule: { type: string }[] = therapyBody.schedule ?? [];
       if (schedule.length === 0) {
         throw new Error("Raspored doza nije generiran. Pokušajte ponovo.");
       }
 
       newPatientId = trimmedId;
+      newTherapyId = therapyBody.therapy.id;
+
+      // STEP 3 — Record initial dose and lipid values (best-effort)
+      // The initial injection is given on start_date; lipids are optional.
+      const lipidi = buildLipidi(lipids);
+      const doseRes = await fetch(`${API_URL}/dose`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          therapy_id: newTherapyId,
+          actual_date: startDate,
+          ...(lipidi ? { lipidi } : {}),
+        }),
+      });
+      if (!doseRes.ok) {
+        const doseBody = await doseRes.json();
+        console.error("[dose] Initial dose recording failed:", doseBody.error);
+        doseRecorded = false;
+        // Do not throw — therapy was created successfully; dose can be added from patient page
+      }
     });
 
     if (ok && newPatientId) {
-      showToast("Pacijent uspješno kreiran.", "success");
-      setTimeout(() => router.push(`/patient/${newPatientId}`), 1200);
+      const msg = doseRecorded
+        ? "Pacijent uspješno kreiran."
+        : "Pacijent kreiran. Unesite inicijalnu dozu na stranici pacijenta.";
+      showToast(msg, "success");
+      setTimeout(() => router.push(`/patient/${newPatientId}`), 1400);
     } else if (!ok) {
       showToast("Greška pri kreiranju pacijenta.", "error");
     }
